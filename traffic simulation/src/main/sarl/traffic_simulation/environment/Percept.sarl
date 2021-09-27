@@ -1,0 +1,132 @@
+
+package traffic_simulation.environment
+
+import java.io.Serializable
+import java.util.UUID
+
+import com.google.common.base.Objects
+import java.util.ArrayList
+import traffic_simulation.util.Tools
+import org.eclipse.xtend.lib.annotations.Accessors
+import java.awt.geom.Point2D
+
+
+  
+class Perception {
+
+	@Accessors
+	var vehicle : Vehicle
+	var dist_vision : double	//distance de vision du conducteur en général 150 mètres
+	var tool : Tools = new Tools
+	var G : Graph
+
+	@Accessors
+	var res : ArrayList<Vehicle>
+	
+	var LightIsView : boolean //true si feu de circulation perçu
+	
+	@Accessors
+	var distWithLight : double = -1 //distance avec le feu perçu, s'il n'est pas perçut elle vaut -1
+	
+	new(v : Vehicle, dv : double, g : Graph){
+		vehicle = v
+		dist_vision = dv
+		G = g
+		res = new ArrayList<Vehicle>
+		LightIsView = false
+		
+	}
+	
+	def getLightIsView() : boolean{
+		return LightIsView
+	}
+	
+	def perceptLight(){//defini si un feu de circulation est perçut
+		var e = vehicle.edge
+		
+		if (e.haveLight) {
+			if (e.light.isGreen == false) {
+				distWithLight = tool.distance(vehicle.coord, e.light.coord)
+				if (distWithLight < dist_vision) {
+					this.LightIsView = true
+				} else {
+					this.LightIsView = false
+					distWithLight = -1
+				}
+			} else {
+				this.LightIsView = false
+				distWithLight = -1
+			}
+			
+			
+		} else {
+			this.LightIsView = false
+			distWithLight = -1
+		}
+		
+	}
+	
+	def percept() : ArrayList<Vehicle> {// fonction percept : calcul la perception, détermine si les bodies perçut par le conducteur 
+										//cette éthode met à jour la liste res dans lequel se truve tous les bodies perçut à au plus 150 mètres = distVision donnée
+		res = new ArrayList<Vehicle>
+		//cas de l'edge sur lequel est le vehicule qui perçoit
+		for (var i = 0; i < vehicle.edge.bodies.size();i++){
+			var v = vehicle.edge.bodies.get(i)
+			// on vérifie que le véhicule ne se perçoit pas lui-même et ne perçoit pas les véhicules derrières
+			
+			if(v.id != vehicle.id && isCarBehind(v) != true){ 
+				if (isView(v)){
+					res.add(v)
+				}
+			}
+		}
+		
+		var dist_restante = dist_vision - (vehicle.edge.weight - vehicle.pos_edge)
+		//cas ou on peut encore percevoir au-dela de l'edge sur lequel se situe le conducteur 
+		if (dist_restante > 0) {
+			dfs_percept(vehicle.edge.getNout, dist_restante)
+			
+				}
+			
+		return res
+	}
+	
+	def dfs_percept(n : Node, dist_restante : double) { //dfs permettant de percevoir sur les edges suivants tant que dist_restante >0, i.e tant que le conducteur 
+														// peut percevoir selon sa distVision
+		for (var i = 0; i < n.neighboors.size(); i++) {
+			var nout = n.neighboors.get(i)
+			var e = G.dict_Edges.get(String.valueOf(n.id) + String.valueOf(nout.id))
+			
+			for (var k = 0; k < e.bodies.size(); k++) {
+				var vh = e.bodies.get(k)
+				
+				if (vh.id != vehicle.id && isView(vh) && isCarBehind(vh) != true)
+			{
+					res.add(vh)
+				}
+			}
+			var newResDist = dist_restante - e.weight
+			if (newResDist > 0) {
+				dfs_percept(nout,newResDist)
+			}
+		}
+	}
+	
+	def isCarBehind(v : Vehicle):boolean{ //on vérifie si la voiture détecté est devant ou derrière 
+		var res : boolean = false
+		if (v.edge.id_ == vehicle.edge.id_) {
+			if (v.pos_edge < vehicle.pos_edge) {
+				res = true
+			}
+		}
+		
+		return res
+	}
+	
+	def isView(v : Vehicle) : boolean { //on vérifie si le véhicule est perçu par le conducteur 
+		var res : boolean = true
+		if (tool.distance_vehicle(vehicle,v) > dist_vision) {res = false}
+		return res
+	}
+	
+}

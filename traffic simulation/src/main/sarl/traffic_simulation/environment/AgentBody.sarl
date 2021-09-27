@@ -1,0 +1,285 @@
+
+package traffic_simulation.environment
+import traffic_simulation.util.Tools
+
+import java.util.ArrayList
+import java.util.UUID
+
+import java.util.List
+import java.text.MessageFormat
+import org.eclipse.xtend.lib.annotations.Accessors
+import java.awt.geom.Point2D
+import javafx.scene.shape.Circle
+import javafx.scene.paint.Color
+import java.util.Random
+
+
+ 
+abstract class Vehicle implements Body {
+	var tool : Tools = new Tools			// class Toom permettant d'accéder au fonction de calcul de vitesse et de position
+	@Accessors
+	var id : UUID							//id du véhicule body
+	@Accessors
+	var c : Circle							//cercle repésentant le véhicule graphiquement
+	@Accessors
+	var coord : Point2D						//coordonnées du véhicule on the mao
+	@Accessors
+	var dim : double						//dimensio du véhicule = diamètre du cercle
+
+	@Accessors
+	var edge : Edge							//edge/morceau de route auquel appartient le véhicule à l'instant t
+	@Accessors
+	var spawn : Node						// node auquelle spawn le bodu
+	@Accessors
+	var pos_edge : double                   //position de l'agent sur le morceau de route
+	@Accessors
+	var accMax : double						//accélération maximale
+	@Accessors
+	var acc : double						//accélération actuelle
+	@Accessors
+	var speed : double						//vitesse actuelle
+	@Accessors
+	var maxSpeed : double					//vitesse maximal
+	@Accessors
+	var position : double					//position du body sur le chemin
+	var distance : double					//distance du chemin parcourue
+	@Accessors
+	var distanceMax : double				//distance totale du chemin à parcourir
+	@Accessors
+	var path : Path							//Chemin du véhicule
+	@Accessors
+	var perception : Perception				//classe permettant le calcul de la perception
+	@Accessors
+	var kill : boolean = false				//kill du body
+	
+	new() {
+		id = UUID.randomUUID()
+		path = new Path
+		position = 0.0
+		pos_edge = 0.0
+		distance = 0.0
+		distanceMax = 0.0
+		speed = 0.0
+		acc = 0.0
+		
+	}
+	
+	def getID(): UUID { //recuperation de l'ID
+		return this.id
+	}
+	
+	def positionToCoord() { //methode permettant le passage de la position en mètre du véhicule sur son chemin en coordonnées (x,y) sur la map
+		
+		var e = path.pathEdges //récupération des edges formant le chemin 
+		var j = 0
+		var stop = false				//stop la boucle	
+		var TotalWeight : double = 0.0
+		while (j < e.size() && stop == false) {
+			TotalWeight = TotalWeight + e.get(j).weight		//total de la distance des différents segment de route parcouru et du segment actuel
+			
+			if (position == 0){stop = true} //cas de la position initiale
+			else if (position <= TotalWeight) { //cas d'une position quelconque sur le chemin dans la map
+				var dist_edge : double = 0.0
+				if (j>0){ //si l'on est pas dans la première partiielle de route
+					for (var i = 0; i < j; i++) {
+						dist_edge += e.get(i).weight
+					}
+					
+				}
+				pos_edge = position - dist_edge    //position de la voiture sur l'edge
+				var percent = pos_edge / e.get(j).weight		//pourcentage de l'edge parcouru
+				
+				var poly = e.get(j).getPoints() //récupération des points de la polyline
+				var nbP = poly.size / 2
+				
+				var at : int = Math.round(nbP * percent) as int    //on determine le nombre de point parcouru sur la polyline par rapport au pourcentage parcouru
+				
+				if (at != 0) {
+					var ind = 2 * at - 2 //récupération de l'indice de la coordonnée x dans le tableau de la plyline
+					//attribution des coordonnées x et y du véhicule sur la map
+					var x = poly.get(ind)
+					var y = poly.get(ind + 1)
+					coord.setLocation(x,y)
+					c.setCenterX(x)
+					c.setCenterY(y)
+				}
+				
+				//mise a jour de l'edge sur lequel se situe le body, suppression de celui ci dans l'ancienne edge et ajout dans le nouvel edge
+				if (e.get(j).id_ != this.edge.id_) {
+					
+					edge.removeBody(this)
+					
+					edge = e.get(j)
+					edge.addBody(this)
+					
+					
+				}
+				
+				stop = true
+				
+			} else if (position > distanceMax) { //cas ou on est arrivé à la fin du chemin
+				edge.removeBody(this)
+				stop = true
+				kill = true
+			}
+			j += 1
+		}
+	}
+	def move(X : double){ //fonction définissant le déplacement X en mètre du body
+		distance = X
+		position = position + distance
+	}
+	
+	def abstract newPath(G : Graph)
+		
+	def D_Max(){//calcul de la distance max du chemin a parcourir
+		var res: double = 0.0
+		for(var i = 0 ;i<path.pathEdges.size();i++){
+			res = res + path.pathEdges.get(i).weight
+		}
+		distanceMax = res
+	}
+	
+	def accelerate( t : double) { //acceleration du body
+		if (acc< -2){acc = -2} //on borne la deceleration à 2 m/s^-2
+		if (speed < maxSpeed){
+		
+		speed = speed + tool.calc_speed(acc,t)} //calcul de la nouvel vitesse
+		if (speed<0){speed=0}					//pas de vitesse négatif possible
+		
+		//calcul de la position du body
+		this.move(tool.calc_position(speed, t))
+		positionToCoord()	
+	}
+	
+	
+	//cette méthode permet de déterminer si le bodu peut spawn ou non en vérifiant qu'il n'y a pas déjà un autre body au niveau du spawn
+	def canSpawn():boolean{
+		var res = true
+		var lst_v = edge.bodies
+		var sx = spawn.coord.getX()
+		var sy = spawn.coord.getY()
+		var s_id = spawn.id
+		
+		lst_v.remove(this)
+		if (lst_v.isEmpty != true){
+			var i = 0
+			while (i<lst_v.size() && res==true){
+				if (s_id == 8 ) {
+					if (
+						sy - this.dim / 2 < lst_v.get(i).coord.getY() + lst_v.get(i).dim / 2) { //on vérifie en fonction des dimensions des vehicules s'il peut spawner
+						res = false
+						}
+					} 
+				else if(s_id == 18){
+					if (sy + this.dim / 2 > lst_v.get(i).coord.getY() - lst_v.get(i).dim / 2) {
+						res = false
+					}
+				}
+				else if (s_id == 2 || s_id == 4){
+					if(sx + this.dim / 2 > lst_v.get(i).coord.getX() - lst_v.get(i).dim / 2 ){
+						res = false
+					}
+				}
+				else{
+					if ( 
+						sx - this.dim / 2 < lst_v.get(i).coord.getX() + lst_v.get(i).dim / 2 )
+			{
+						res = false
+					}
+				}
+				i = i + 1
+			}
+		}
+		return res
+	}
+
+	def initialzeEdgeBodies() {
+		this.edge.addBody(this)	
+	}
+	
+	//methode appelant le calcul de la perception
+	def calculatePerceptions() : void {
+		perception.perceptLight()
+		perception.percept()
+		
+		
+	}
+}
+
+// class du corps du véhicule prioritaire non utilisé
+class priorityVehicleBody extends Vehicle {
+	
+	def newPath(G : Graph) {
+		var i:int 
+	}
+	
+}
+
+//class du corps du véhicule du conducteur classique
+class classicDriverBody extends Vehicle{
+	
+	new(map : Map, acc_max : double) {
+		//initialisation des paramètres
+		super()
+		newPath(map.getG)
+		var x = path.pathNodes.get(0).coord.getX()
+		var y = path.pathNodes.get(0).coord.getY()
+		coord = new Point2D.Double
+		c = new Circle
+		coord.setLocation(x, y)
+		c.setCenterX(x)
+		c.setCenterY(y)
+		c.setRadius(2.25)
+		dim = 2*2.25
+		this.c.setFill(Color.BLUE)//couleur des véhicules en bleu
+		D_Max()
+		
+		accMax =acc_max
+		maxSpeed = 13.8
+		this.perception = new Perception(this, 150.0, map.getG)
+		this.edge = path.pathEdges.get(0)
+	}
+	
+	
+	//cette méthode permet de définir un chemin aléatoire au véhicule lorsque le body spawn
+	def newPath(G:Graph) {
+		var in : ArrayList<Node> = new ArrayList<Node>
+		var out : ArrayList<Node> = new ArrayList<Node>
+		for (var i = 0; i < G.getListNodes.size();i = i + 2){
+			
+			//Définissions des entrées et sorties possibles
+			if(i == 0 || i == 6 || i == 10 || i == 16){
+				out.add(G.getListNodes.get(i))
+			} else {
+				in.add(G.getListNodes.get(i))
+			}
+		}
+		
+		//définition d'une entrée et d'une sortie random de manière à ce que l'entrée et la sortie soit compatible
+		var rand : Random = new Random
+		var numIN : int = rand.nextInt(in.size())
+		var numOUT : int
+		
+		if (in.get(numIN).id == 2){
+			numOUT = 3
+		} else if (in.get(numIN).id == 12) {
+			numOUT = 1
+		}else{
+			if (in.get(numIN).id == 4) {
+				numOUT = 1 + rand.nextInt(2)
+			} else if (in.get(numIN).id == 8) {
+				numOUT = 1 + rand.nextInt(3)
+				if (numOUT == 1){ numOUT = 0}
+			} else if (in.get(numIN).id == 14) {
+				numOUT = 2 + rand.nextInt(2)
+				if (numOUT==2){numOUT=0}
+			} else if (in.get(numIN).id == 18) {
+				numOUT =  rand.nextInt(3)
+			}
+		}
+		spawn = in.get(numIN)
+		path.Astar(G,in.get(numIN),out.get(numOUT)) //appel de la fonction A* pour defini le chemin
+	}
+	
+}

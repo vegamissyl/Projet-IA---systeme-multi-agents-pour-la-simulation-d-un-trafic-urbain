@@ -1,0 +1,61 @@
+package traffic_simulation.environment
+
+import java.awt.geom.Point2D
+import java.util.*;
+import javafx.scene.shape.Polyline
+import org.eclipse.xtend.lib.annotations.Accessors
+
+class Node {
+
+	@Accessors(PUBLIC_SETTER, PUBLIC_GETTER)
+	var id : int		//id du noeud
+	@Accessors(PUBLIC_SETTER, PUBLIC_GETTER)
+	var coord : Point2D	//coord du noeud
+	@Accessors(PUBLIC_SETTER, PUBLIC_GETTER)
+	var neighboors : ArrayList<Node>		//liste des voisins du noeuds
+	@Accessors(PUBLIC_SETTER, PUBLIC_GETTER)
+	var statut : String
+
+	new(i : int, x : Double, y : Double) {
+		this.id = i
+		coord = new Point2D.Double()
+		coord.setLocation(x, y)
+		neighboors = new ArrayList<Node>
+	}
+}
+
+class Edge extends Polyline {
+	@Accessors(PUBLIC_SETTER, PUBLIC_GETTER)
+	var id_ : int			//id de l'edge
+	@Accessors(PUBLIC_SETTER, PUBLIC_GETTER)
+	var Nin : Node			//noeud d'entrée de l'edge
+	@Accessors(PUBLIC_SETTER, PUBLIC_GETTER)
+	var Nout : Node			//noeud de sortie de l'edge
+	@Accessors(PUBLIC_SETTER, PUBLIC_GETTER)
+	var nbVoies : int		//non utilisé
+	@Accessors(PUBLIC_SETTER, PUBLIC_GETTER)
+	var weight : double		//distance de l'edge
+	@Accessors(PUBLIC_SETTER, PUBLIC_GETTER)
+	var bodies : ArrayList<Vehicle>		//liste des bodies des véhicues présent sur le morceau de route 
+	@Accessors(PUBLIC_SETTER, PUBLIC_GETTER)
+	var haveLight : boolean = false		//true si l'edge possède un feu de circulation
+	@Accessors(PUBLIC_SETTER, PUBLIC_GETTER)
+	var light : trafficLight			//feu de circulation s'il y en a un 
+
+	new (i : int, in_ : Node, out_ : Node) {
+		super()
+		this.id_ = i
+		this.Nin = in_
+		this.Nout = out_
+		this.bodies = new ArrayList<Vehicle>
+	}
+	
+	def addBody(v : Vehicle) { //methode d'ajout d'un body dans la liste
+		
+		bodies.add(v)
+	}
+	
+	def removeBody(v : Vehicle){ //methode de retrait d'un body de la liste
+		bodies.remove(v)
+	}
+}

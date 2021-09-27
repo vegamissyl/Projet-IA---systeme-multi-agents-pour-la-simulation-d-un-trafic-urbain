@@ -1,0 +1,100 @@
+
+package traffic_simulation.environment
+
+import java.util.UUID
+import java.time.LocalDateTime
+import java.util.Timer
+import java.util.TimerTask
+
+import java.util.TreeMap
+import org.eclipse.xtend.lib.annotations.Accessors
+import java.util.ArrayList
+
+
+class Environment {
+	
+	var timer : Timer = new Timer() //timer use for the changement of light of the trafficlights
+	
+	@Accessors
+	var bodyList : TreeMap<UUID, classicDriverBody> //Liste des bodies dans l'environment
+	@Accessors
+	var priorityVehicle : priorityVehicleBody		//vehicule prioritaire dans l'environment non utilisé
+	@Accessors
+	var map : Map									//map de l'environment
+
+	@Accessors
+	var trafficlight_lst : ArrayList<trafficLight>		//list des différents feux de la map
+	@Accessors
+	var nombreTotalAgentClassic : int					//nombre total d'agent classic
+	@Accessors
+	var tempsFeu : int									//temps de changement entre le feu rouge et le feu vert
+	@Accessors
+	var nbAccl : double									//acceleration max des bodies
+	
+	new(height : int, width : int, nbAgent : int, nbAcc : double, tpsFeu:int) {
+		//initialisation des paramètres
+		bodyList = new TreeMap<UUID, classicDriverBody>
+		priorityVehicle = new priorityVehicleBody()
+		map = new Map(height, width)
+		trafficlight_lst = new ArrayList<trafficLight>
+		nbAccl = nbAcc
+		tempsFeu = tpsFeu
+		addTrafficlight(3, "23", true)
+		addTrafficlight(5, "45", true)
+		addTrafficlight(13, "1213", true)
+		addTrafficlight(15, "1415", true)
+		addTrafficlight(9, "89", false)
+		addTrafficlight(19, "1819", false)
+		nombreTotalAgentClassic = nbAgent
+		//initialisation du timer des fuex
+		timer.scheduleAtFixedRate(new TimerTask(){
+	
+		def run {
+			//changement de couleur du feu
+			for (var i = 0; i<trafficlight_lst.size;i++){
+				
+				if (trafficlight_lst.get(i).isGreen) {
+						trafficlight_lst.get(i).turnRed
+				} else {
+						trafficlight_lst.get(i).turnGreen
+				}
+				
+			}
+		}
+	
+		}, tempsFeu*1000, tempsFeu*1000)
+		
+	}
+	
+	def Update() {//Méthode permettant de mettre à jour l'environnment
+		
+		var a = bodyList.values
+		
+		for(entry : bodyList.entrySet()){//modification de la position des bodies sur la map
+			
+			bodyList.get(entry.getKey()).accelerate(0.5)
+			if (bodyList.get(entry.getKey()).speed == 0) {
+				
+				
+			}
+			
+			}
+	}
+	
+	def addTrafficlight(idNode : int,keyEdge : String, state : boolean){//méthode permettant l'ajout d'un feu de circulation sur un edge
+		var n = map.getG.getListNodes.get(idNode)
+		var e = map.getG.dict_Edges.get(keyEdge)
+		var Tf = new trafficLight(n.coord.getX(),n.coord.getY(),state)
+		e.haveLight = true
+		e.light = Tf
+		trafficlight_lst.add(Tf)
+	}
+	
+	
+	//permet de stoper le timer lors de la fin de la simulation
+	def stop() {
+		timer.cancel
+		timer.purge
+		
+	}
+}

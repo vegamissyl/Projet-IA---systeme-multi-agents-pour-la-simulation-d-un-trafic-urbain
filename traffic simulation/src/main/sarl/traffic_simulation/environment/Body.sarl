@@ -1,0 +1,15 @@
+
+package traffic_simulation.environment
+
+import java.util.List
+import java.util.UUID
+
+
+interface Body {
+
+	
+	def getID : UUID
+
+	
+
+}
